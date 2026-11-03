@@ -2,8 +2,8 @@
 # Fonctionnalités à implémenter
 L’objectif est d’implémenter manuellement la plupart des fonctionnalites de sécurité d’un
 framework.
-[ ] - Authentification sécurisée (session, régénération de l’id…)
-[ ] - Stockage mdp sécurisé (argon2id, bcrypt…)
+[X] - Authentification sécurisée (session, régénération de l’id…)
+[X] - Stockage mdp sécurisé (argon2id, bcrypt…)
 [ ] - Cookies avec des défauts sécurisants
 [ ] - En-tête HTTP (HSTS, CSP, Clickjacking, MIME Sniffing…)
 ‣ Dont politique CSP

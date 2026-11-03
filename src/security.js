@@ -1,5 +1,7 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
 
+const scrypt = promisify(scryptCb);
 const encoder = new TextEncoder();
 
 function base64UrlEncode(value) {
@@ -10,22 +12,27 @@ function base64UrlDecode(value) {
     return Buffer.from(value, 'base64url').toString('utf8');
 }
 
-export function hashPassword(password) {
+// Hachage asynchrone pour ne pas bloquer l'Event Loop
+export async function hashPassword(password) {
     const salt = randomBytes(16).toString('hex');
-    const derivedKey = scryptSync(password, salt, 64).toString('hex');
-    return `scrypt:${salt}:${derivedKey}`;
+    const derivedKey = await scrypt(password, salt, 64);
+    return `scrypt:${salt}:${derivedKey.toString('hex')}`;
 }
 
-export function verifyPassword(password, storedHash) {
+export async function verifyPassword(password, storedHash) {
     const [algorithm, salt, expected] = storedHash.split(':');
     if (algorithm !== 'scrypt' || !salt || !expected) return false;
-    const actual = scryptSync(password, salt, 64).toString('hex');
+    
+    const actualKey = await scrypt(password, salt, 64);
+    const actual = actualKey.toString('hex');
+    
     return timingSafeEqual(encoder.encode(actual), encoder.encode(expected));
 }
 
 export function signJwt(payload, secret, ttlSeconds) {
     const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-    const body = base64UrlEncode(JSON.stringify({ ...payload, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + ttlSeconds }));
+    const now = Math.floor(Date.now() / 1000);
+    const body = base64UrlEncode(JSON.stringify({ ...payload, iat: now, exp: now + ttlSeconds }));
     const unsigned = `${header}.${body}`;
     const signature = createHmac('sha256', secret).update(unsigned).digest('base64url');
     return `${unsigned}.${signature}`;
@@ -34,21 +41,33 @@ export function signJwt(payload, secret, ttlSeconds) {
 export function verifyJwt(token, secret) {
     const [header, body, signature] = token.split('.');
     if (!header || !body || !signature) throw new Error('Invalid token');
+    
     const unsigned = `${header}.${body}`;
     const expected = createHmac('sha256', secret).update(unsigned).digest();
     const actual = Buffer.from(signature, 'base64url');
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new Error('Invalid signature');
+    
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+        throw new Error('Invalid signature');
+    }
+    
     const claims = JSON.parse(base64UrlDecode(body));
     if (claims.exp <= Math.floor(Date.now() / 1000)) throw new Error('Expired token');
     return claims;
 }
 
 export function parseCookies(request) {
-    const header = request.headers.cookie || '';
-    return Object.fromEntries(header.split(';').filter(Boolean).map(part => {
-        const index = part.indexOf('=');
-        return [part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1).trim())];
-    }));
+    const header = request.headers?.cookie || request.headers?.get?.('cookie') || '';
+    if (!header) return {};
+    
+    return Object.fromEntries(
+        header.split(';').map(part => {
+            const index = part.indexOf('=');
+            if (index === -1) return null;
+            const name = part.slice(0, index).trim();
+            const val = part.slice(index + 1).trim();
+            return [name, decodeURIComponent(val)];
+        }).filter(Boolean)
+    );
 }
 
 export function serializeCookie(name, value, options = {}) {
