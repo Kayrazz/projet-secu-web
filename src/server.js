@@ -17,13 +17,21 @@ function sendJson(response, status, payload, headers = {}) {
 }
 
 function securityHeaders() {
-    return {
+    const headers = {
         'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'",
-        'X-Content-Type-Options': 'nosniff',
+        // Interdit l'intégration de la boutique dans une iframe.
         'X-Frame-Options': 'DENY',
-        'Referrer-Policy': 'no-referrer',
-        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+        // Empêche le navigateur de deviner un autre type MIME.
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'no-referrer'
     };
+
+    // HSTS ne doit être envoyé qu'en HTTPS, donc uniquement en production.
+    if (config.nodeEnv === 'production') {
+        headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+    }
+
+    return headers;
 }
 
 async function readJson(request) {
@@ -79,6 +87,8 @@ async function handleApi(request, response, url) {
 }
 
 async function serveStatic(response, url) {
+    const headers = securityHeaders();
+
     // Chaque écran possède son propre document HTML.
     const pages = {
         '/': '/login.html',
@@ -87,7 +97,7 @@ async function serveStatic(response, url) {
     };
     const requested = pages[url.pathname] || url.pathname;
     let filePath = normalize(join(root, requested));
-    if (!filePath.startsWith(root)) return response.writeHead(403).end();
+    if (!filePath.startsWith(root)) return response.writeHead(403, headers).end();
     try {
         let file;
         try {
@@ -97,17 +107,17 @@ async function serveStatic(response, url) {
             file = await stat(filePath);
         }
         if (!file.isFile()) throw new Error('Not a file');
-        response.writeHead(200, { 'Content-Type': mimeTypes[extname(filePath)] || 'application/octet-stream', ...securityHeaders() });
+        response.writeHead(200, { 'Content-Type': mimeTypes[extname(filePath)] || 'application/octet-stream', ...headers });
         createReadStream(filePath).pipe(response);
     } catch {
-        response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
+        response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...headers }).end('Not found');
     }
 }
 
 const server = createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
     if (url.pathname.startsWith('/api/')) return handleApi(request, response, url);
-    if (request.method !== 'GET') return response.writeHead(405, { Allow: 'GET' }).end();
+    if (request.method !== 'GET') return response.writeHead(405, { Allow: 'GET', ...securityHeaders() }).end();
     return serveStatic(response, url);
 });
 
