@@ -26,6 +26,7 @@ form.addEventListener('submit', async event => {
 
     const formData = new FormData(form);
     const credentials = {
+        csrfToken: formData.get('csrf_token'),
         email: formData.get('email'),
         password: formData.get('password')
     };
@@ -33,6 +34,9 @@ form.addEventListener('submit', async event => {
     try {
         await request('/api/auth/login', {
             method: 'POST',
+            headers: {
+                'X-CSRF-Token': credentials.csrfToken
+            },
             body: JSON.stringify(credentials)
         });
         window.location.assign('/app');
