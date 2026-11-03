@@ -1,0 +1,825 @@
+:root {
+    color-scheme: light;
+    --paper: #f7f3e9;
+    --ink: #17191f;
+    --muted: #6d6c69;
+    --line: #ded8cb;
+    --yellow: #f7c948;
+    --red: #ef5b4d;
+    --blue: #70b8d2;
+    --pink: #f0a6b9;
+    --navy: #20283e;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--ink);
+    background: var(--paper);
+    font-family: Georgia, serif;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+}
+
+button:disabled {
+    cursor: wait;
+    opacity: .6;
+}
+
+/* Shared brand elements keep the visual identity consistent across pages. */
+.brand {
+    display: inline-flex;
+    align-items: center;
+    gap: .65rem;
+    font: 700 .9rem/.86 'Courier New', monospace;
+    letter-spacing: .08em;
+}
+
+.brand-mark {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    color: var(--ink);
+    background: var(--yellow);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    font: 700 1rem Georgia, serif;
+    transform: rotate(-8deg);
+}
+
+.eyebrow,
+label,
+.hint,
+small,
+.product-category,
+.account-label {
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    font-size: .68rem;
+}
+
+.eyebrow {
+    color: var(--red);
+    margin: 0 0 1.4rem;
+}
+
+em {
+    color: var(--red);
+    font-style: normal;
+}
+
+/* Login page: editorial split layout with a playful collectible silhouette. */
+.login-layout {
+    display: grid;
+    grid-template-columns: minmax(320px, .95fr) minmax(400px, 1.05fr);
+    min-height: 100vh;
+}
+
+.login-visual {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+    padding: 2.5rem clamp(2rem, 7vw, 7rem);
+    color: #fff;
+    background: var(--navy);
+}
+
+.brand-light {
+    color: #fff;
+}
+
+.brand-light .brand-mark {
+    color: var(--navy);
+    border-color: #fff;
+}
+
+.login-visual::before {
+    position: absolute;
+    width: 30rem;
+    height: 30rem;
+    right: -9rem;
+    bottom: -7rem;
+    border-radius: 50%;
+    background: var(--red);
+    content: '';
+}
+
+.login-figure,
+.hero-figure {
+    position: relative;
+    z-index: 1;
+    align-self: center;
+    width: 12rem;
+    height: 17rem;
+    margin: auto;
+}
+
+.login-figure .figure-head {
+    width: 10rem;
+    height: 9.5rem;
+}
+
+.visual-caption {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    font: 1rem/1.1 'Courier New', monospace;
+    letter-spacing: .08em;
+}
+
+.visual-caption strong {
+    color: var(--yellow);
+    font-size: 1.8rem;
+}
+
+.login-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 5rem clamp(2rem, 8vw, 9rem);
+}
+
+.login-panel h1 {
+    margin: 0 0 1.2rem;
+    font-size: clamp(3.2rem, 6vw, 6.8rem);
+    line-height: .88;
+    letter-spacing: -.07em;
+    font-weight: 500;
+}
+
+.intro {
+    max-width: 27rem;
+    margin: 0 0 2.5rem;
+    color: var(--muted);
+    font-size: 1.08rem;
+    line-height: 1.45;
+}
+
+form {
+    width: min(100%, 360px);
+    display: grid;
+    gap: .65rem;
+}
+
+label {
+    margin-top: .8rem;
+    color: var(--muted);
+}
+
+input {
+    width: 100%;
+    padding: .8rem 0;
+    color: var(--ink);
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid var(--line);
+    outline: none;
+    font: inherit;
+}
+
+input:focus {
+    border-color: var(--red);
+}
+
+form button[type='submit'] {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1.4rem;
+    padding: 1rem 1.2rem;
+    color: #fff;
+    background: var(--red);
+    border: 2px solid var(--ink);
+    box-shadow: 4px 4px 0 var(--ink);
+    font-weight: 700;
+    text-align: left;
+}
+
+form button[type='submit']:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--ink);
+}
+
+.hint {
+    margin: 1.4rem 0 0;
+    color: var(--muted);
+    line-height: 1.6;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.error {
+    min-height: 1.2rem;
+    margin: .5rem 0 0;
+    color: var(--red);
+    font-size: .85rem;
+}
+
+/* Store page: clean header, one strong campaign block, then the catalogue. */
+.shop-shell {
+    width: min(1240px, calc(100% - 64px));
+    margin: auto;
+}
+
+.shop-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: 2rem 0 1.5rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.main-nav {
+    display: flex;
+    gap: 1.8rem;
+    color: var(--muted);
+    font-size: .92rem;
+}
+
+.main-nav a {
+    position: relative;
+    padding: .3rem 0;
+}
+
+.main-nav a.active,
+.main-nav a:hover {
+    color: var(--ink);
+}
+
+.main-nav a.active::after {
+    position: absolute;
+    right: 0;
+    bottom: -.65rem;
+    left: 0;
+    height: 3px;
+    background: var(--red);
+    content: '';
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+.account-label {
+    max-width: 10rem;
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cart-button,
+.logout {
+    border: 1px solid var(--ink);
+    background: transparent;
+}
+
+.cart-button {
+    padding: .65rem .8rem;
+    font-size: .8rem;
+}
+
+.cart-button span {
+    display: inline-grid;
+    min-width: 1.3rem;
+    height: 1.3rem;
+    margin-left: .3rem;
+    place-items: center;
+    color: #fff;
+    background: var(--red);
+    border-radius: 50%;
+    font-size: .7rem;
+}
+
+.logout {
+    width: 2.3rem;
+    height: 2.3rem;
+    padding: 0;
+    font-size: 1.15rem;
+}
+
+.shop-hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr .16fr;
+    align-items: center;
+    min-height: 29rem;
+    margin-top: 1.5rem;
+    padding: 3.5rem 5rem;
+    overflow: hidden;
+    background: var(--yellow);
+}
+
+.shop-hero::after {
+    position: absolute;
+    width: 23rem;
+    height: 23rem;
+    right: 13%;
+    bottom: -12rem;
+    border: 3px solid var(--ink);
+    border-radius: 50%;
+    content: '';
+}
+
+.hero-copy {
+    position: relative;
+    z-index: 2;
+}
+
+.hero-copy h1 {
+    margin: 0 0 1.4rem;
+    font-size: clamp(3.5rem, 7vw, 7.5rem);
+    line-height: .82;
+    letter-spacing: -.08em;
+    font-weight: 500;
+}
+
+.hero-copy p:not(.eyebrow) {
+    max-width: 25rem;
+    margin-bottom: 1.7rem;
+    line-height: 1.45;
+}
+
+.primary-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .8rem;
+    padding: .9rem 1rem;
+    border: 2px solid var(--ink);
+    background: #fff;
+    box-shadow: 4px 4px 0 var(--ink);
+    font-weight: 700;
+}
+
+.primary-link span {
+    font-size: 1.3rem;
+}
+
+.hero-figure {
+    transform: translateY(1.5rem) scale(1.15);
+}
+
+.burst {
+    position: absolute;
+    z-index: 4;
+    top: -1rem;
+    right: -3rem;
+    display: grid;
+    width: 6rem;
+    height: 6rem;
+    place-content: center;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    color: #fff;
+    background: var(--red);
+    font: .7rem/1 'Courier New', monospace;
+    text-align: center;
+    transform: rotate(12deg);
+}
+
+.burst strong {
+    font: 1.35rem Georgia, serif;
+}
+
+.hero-note {
+    position: relative;
+    z-index: 2;
+    align-self: end;
+    margin: 0;
+    font: .7rem/1.4 'Courier New', monospace;
+}
+
+.hero-note span {
+    color: var(--red);
+}
+
+.collection-bar {
+    display: flex;
+    justify-content: space-around;
+    gap: 1rem;
+    padding: 1.15rem 0;
+    border-bottom: 1px solid var(--line);
+    font: .72rem 'Courier New', monospace;
+    text-transform: uppercase;
+}
+
+.collection-bar strong {
+    color: var(--red);
+    font-size: 1rem;
+}
+
+.catalogue {
+    padding: 5rem 0 7rem;
+}
+
+.section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-bottom: 2.5rem;
+}
+
+.section-heading h2 {
+    margin: 0;
+    font-size: clamp(2.8rem, 5vw, 5.3rem);
+    line-height: .88;
+    letter-spacing: -.07em;
+    font-weight: 500;
+}
+
+.filters {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+.filter {
+    padding: .6rem .8rem;
+    border: 1px solid var(--line);
+    background: transparent;
+    font-size: .78rem;
+}
+
+.filter.active,
+.filter:hover {
+    color: #fff;
+    border-color: var(--ink);
+    background: var(--ink);
+}
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.product-card {
+    overflow: hidden;
+    border: 1px solid var(--ink);
+    background: #fff;
+}
+
+.product-art {
+    position: relative;
+    display: grid;
+    height: 16rem;
+    place-items: center;
+    overflow: hidden;
+}
+
+.product-art::after {
+    position: absolute;
+    right: -2rem;
+    bottom: -4rem;
+    width: 12rem;
+    height: 12rem;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    content: '';
+    opacity: .5;
+}
+
+.product-art span {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    width: 7rem;
+    height: 8rem;
+    place-items: center;
+    border: 3px solid var(--ink);
+    border-radius: 46% 46% 38% 38%;
+    color: #fff;
+    background: var(--navy);
+    box-shadow: 8px 8px 0 rgba(23, 25, 31, .18);
+    font-size: 3.5rem;
+}
+
+.product-art small {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 2;
+    color: var(--ink);
+}
+
+.art-pikachu {
+    background: var(--yellow);
+}
+
+.art-pikachu span {
+    color: var(--ink);
+    background: #f4c631;
+}
+
+.art-spider {
+    background: var(--red);
+}
+
+.art-spider span {
+    background: #222b55;
+}
+
+.art-gojo {
+    background: var(--blue);
+}
+
+.art-gojo span {
+    background: #e9eee9;
+    color: var(--navy);
+}
+
+.art-wednesday {
+    background: var(--pink);
+}
+
+.art-wednesday span {
+    background: #242539;
+}
+
+.product-info {
+    padding: 1rem;
+}
+
+.product-category {
+    margin: 0 0 .45rem;
+    color: var(--muted);
+    font-size: .6rem;
+}
+
+.product-info h3 {
+    margin: 0 0 1rem;
+    font-size: 1.05rem;
+    font-weight: 500;
+}
+
+.product-info>div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.product-info strong {
+    font-size: 1.1rem;
+}
+
+.add-button {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    background: var(--yellow);
+    font-size: 1.3rem;
+}
+
+/* Shared CSS character used in the login and campaign illustrations. */
+.figure-head {
+    position: absolute;
+    top: 0;
+    left: 1rem;
+    width: 10rem;
+    height: 9rem;
+    border: 3px solid var(--ink);
+    border-radius: 48% 48% 42% 42%;
+    background: #f1c79f;
+}
+
+.figure-head::before {
+    position: absolute;
+    top: -1rem;
+    left: -.2rem;
+    width: 9.8rem;
+    height: 3rem;
+    border: 3px solid var(--ink);
+    border-bottom: 0;
+    border-radius: 50% 50% 0 0;
+    background: #2b2940;
+    content: '';
+}
+
+.eye {
+    position: absolute;
+    top: 4rem;
+    width: .65rem;
+    height: 1.1rem;
+    border-radius: 50%;
+    background: var(--ink);
+}
+
+.eye.left {
+    left: 2.6rem;
+}
+
+.eye.right {
+    right: 2.6rem;
+}
+
+.smile {
+    position: absolute;
+    bottom: 1.6rem;
+    left: 4.2rem;
+    width: 1.6rem;
+    height: .7rem;
+    border-bottom: 3px solid var(--ink);
+    border-radius: 50%;
+}
+
+.figure-body {
+    position: absolute;
+    bottom: 1.2rem;
+    left: 2.1rem;
+    width: 8rem;
+    height: 7rem;
+    display: grid;
+    place-items: center;
+    border: 3px solid var(--ink);
+    border-radius: 42% 42% 18% 18%;
+    background: var(--red);
+}
+
+.shirt-star {
+    color: var(--yellow);
+    font-size: 2.5rem;
+}
+
+.figure-feet span {
+    position: absolute;
+    bottom: 0;
+    width: 3.8rem;
+    height: 1.8rem;
+    border: 3px solid var(--ink);
+    border-radius: 50%;
+    background: var(--navy);
+}
+
+.figure-feet span:first-child {
+    left: 1.2rem;
+}
+
+.figure-feet span:last-child {
+    right: 1.2rem;
+}
+
+.figure-shadow {
+    position: absolute;
+    right: 0;
+    bottom: -.3rem;
+    left: 0;
+    height: 1rem;
+    border-radius: 50%;
+    background: rgba(23, 25, 31, .25);
+}
+
+@media (max-width: 900px) {
+    .main-nav {
+        gap: .8rem;
+    }
+
+    .account-label {
+        display: none;
+    }
+
+    .shop-hero {
+        grid-template-columns: 1.1fr .9fr;
+        padding: 3rem 2.5rem;
+    }
+
+    .hero-note {
+        display: none;
+    }
+
+    .product-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 620px) {
+    .login-layout {
+        display: block;
+    }
+
+    .login-visual {
+        min-height: 16rem;
+        padding: 1.5rem;
+    }
+
+    .login-visual::before {
+        right: -5rem;
+        bottom: -12rem;
+    }
+
+    .login-figure {
+        position: absolute;
+        right: 1rem;
+        bottom: -2rem;
+        transform: scale(.55);
+        transform-origin: bottom right;
+    }
+
+    .visual-caption {
+        position: absolute;
+        bottom: 1.5rem;
+        left: 1.5rem;
+    }
+
+    .login-panel {
+        padding: 4rem 1.5rem;
+    }
+
+    .shop-shell {
+        width: min(100% - 28px, 1240px);
+    }
+
+    .shop-header {
+        flex-wrap: wrap;
+    }
+
+    .main-nav {
+        order: 3;
+        width: 100%;
+        justify-content: space-between;
+        gap: .4rem;
+        font-size: .8rem;
+    }
+
+    .shop-hero {
+        display: block;
+        min-height: 39rem;
+        padding: 2.5rem 1.5rem;
+    }
+
+    .hero-figure {
+        margin: 2rem auto 0;
+        transform: scale(.85);
+    }
+
+    .collection-bar {
+        flex-direction: column;
+        gap: .7rem;
+    }
+
+    .catalogue {
+        padding-top: 4rem;
+    }
+
+    .section-heading {
+        display: block;
+    }
+
+    .filters {
+        margin-top: 1.5rem;
+    }
+
+    .product-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: .65rem;
+    }
+
+    .product-art {
+        height: 11rem;
+    }
+
+    .product-art span {
+        width: 5.5rem;
+        height: 6.5rem;
+        font-size: 2.5rem;
+    }
+
+    .product-info {
+        padding: .75rem;
+    }
+
+    .product-info h3 {
+        min-height: 2.5rem;
+        font-size: .9rem;
+    }
+
+    .product-info strong {
+        font-size: .9rem;
+    }
+}

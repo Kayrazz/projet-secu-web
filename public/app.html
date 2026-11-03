@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Accueil | Pop Corner</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+    <main class="shop-shell">
+        <!-- Navigation principale de la boutique. -->
+        <header class="shop-header">
+            <a class="brand" href="/app" aria-label="Pop Corner, accueil">
+                <span class="brand-mark">P!</span>
+                <span>POP<br><strong>CORNER</strong></span>
+            </a>
+
+            <nav class="main-nav" aria-label="Navigation principale">
+                <a class="active" href="#new">Nouveautés</a>
+                <a href="#marvel">Marvel</a>
+                <a href="#anime">Anime</a>
+                <a href="#collector">Collector</a>
+            </nav>
+
+            <div class="header-actions">
+                <span class="account-label" id="user-email"></span>
+                <button class="cart-button" id="cart-button" type="button" aria-label="Ouvrir le panier">
+                    Panier <span id="cart-count">0</span>
+                </button>
+                <button class="logout" id="logout" type="button" aria-label="Fermer la session">↪</button>
+            </div>
+        </header>
+
+        <!-- Mise en avant de la collection du moment. -->
+        <section class="shop-hero" id="new">
+            <div class="hero-copy">
+                <p class="eyebrow">DROP 04 / 2026</p>
+                <h1>Les petites<br><em>icônes</em> arrivent.</h1>
+                <p>Des personnages cultes, des boîtes neuves et cette envie très précise de tous les collectionner.</p>
+                <a class="primary-link" href="#products">Voir les nouveautés <span>↘</span></a>
+            </div>
+            <div class="hero-figure" aria-label="Figurine exclusive en vedette" role="img">
+                <div class="burst">EXCLU<br><strong>POP!</strong></div>
+                <div class="figure-shadow"></div>
+                <div class="figure-head"><span class="eye left"></span><span class="eye right"></span><span
+                        class="smile"></span></div>
+                <div class="figure-body"><span class="shirt-star">★</span></div>
+                <div class="figure-feet"><span></span><span></span></div>
+            </div>
+            <p class="hero-note">01 / 04<br><span>LIMITED DROP</span></p>
+        </section>
+
+        <section class="collection-bar" aria-label="Résumé de la collection">
+            <span><strong>240+</strong> figurines en stock</span>
+            <span><strong>24h</strong> expédition rapide</span>
+            <span><strong>100%</strong> boîtes protégées</span>
+        </section>
+
+        <!-- Catalogue statique prêt à être relié à la base produits. -->
+        <section class="catalogue" id="products">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">À LA UNE</p>
+                    <h2>Choisis ton<br><em>prochain pop.</em></h2>
+                </div>
+                <div class="filters" aria-label="Filtrer les produits">
+                    <button class="filter active" type="button">Tout</button>
+                    <button class="filter" type="button">Marvel</button>
+                    <button class="filter" type="button">Anime</button>
+                    <button class="filter" type="button">Séries</button>
+                </div>
+            </div>
+
+            <div class="product-grid">
+                <article class="product-card product-card-yellow">
+                    <div class="product-art art-pikachu"><span>⚡</span><small>FUNKO POP!</small></div>
+                    <div class="product-info">
+                        <p class="product-category">Animation / 121</p>
+                        <h3>Pikachu avec éclair</h3>
+                        <div><strong>19,90 €</strong><button class="add-button" type="button"
+                                aria-label="Ajouter Pikachu au panier">+</button></div>
+                    </div>
+                </article>
+                <article class="product-card product-card-red">
+                    <div class="product-art art-spider"><span>✦</span><small>MARVEL</small></div>
+                    <div class="product-info">
+                        <p class="product-category">Marvel / 1169</p>
+                        <h3>Spider-Man suspendu</h3>
+                        <div><strong>24,90 €</strong><button class="add-button" type="button"
+                                aria-label="Ajouter Spider-Man au panier">+</button></div>
+                    </div>
+                </article>
+                <article class="product-card product-card-blue">
+                    <div class="product-art art-gojo"><span>◉</span><small>ANIMATION</small></div>
+                    <div class="product-info">
+                        <p class="product-category">Jujutsu Kaisen / 1642</p>
+                        <h3>Satoru Gojo</h3>
+                        <div><strong>29,90 €</strong><button class="add-button" type="button"
+                                aria-label="Ajouter Gojo au panier">+</button></div>
+                    </div>
+                </article>
+                <article class="product-card product-card-pink">
+                    <div class="product-art art-wednesday"><span>☾</span><small>SÉRIES</small></div>
+                    <div class="product-info">
+                        <p class="product-category">Wednesday / 1308</p>
+                        <h3>Wednesday Addams</h3>
+                        <div><strong>21,90 €</strong><button class="add-button" type="button"
+                                aria-label="Ajouter Wednesday au panier">+</button></div>
+                    </div>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+</body>
+
+</html>
