@@ -1,12 +1,12 @@
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { findUserByEmail, findUserById } from './db.js';
 import { rateLimit } from './rate-limit.js';
-import { parseCookies, serializeCookie, signJwt, verifyJwt, verifyPassword } from './security.js';
+import { parseCookies, safeEqual, serializeCookie, signCsrfToken, signJwt, verifyCsrfToken, verifyJwt, verifyPassword } from './security.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)), 'public');
 const mimeTypes = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8' };
@@ -17,13 +17,21 @@ function sendJson(response, status, payload, headers = {}) {
 }
 
 function securityHeaders() {
-    return {
+    const headers = {
         'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'",
-        'X-Content-Type-Options': 'nosniff',
+        // Interdit l'intégration de la boutique dans une iframe.
         'X-Frame-Options': 'DENY',
-        'Referrer-Policy': 'no-referrer',
-        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+        // Empêche le navigateur de deviner un autre type MIME.
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'no-referrer'
     };
+
+    // HSTS ne doit être envoyé qu'en HTTPS, donc uniquement en production.
+    if (config.nodeEnv === 'production') {
+        headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+    }
+
+    return headers;
 }
 
 async function readJson(request) {
@@ -33,6 +41,13 @@ async function readJson(request) {
         if (body.length > 10_000) throw new Error('Payload too large');
     }
     return JSON.parse(body || '{}');
+}
+
+function hasValidCsrfToken(request, formToken) {
+    const headerToken = request.headers['x-csrf-token'];
+    return Boolean(formToken && headerToken)
+        && safeEqual(formToken, headerToken)
+        && verifyCsrfToken(formToken, config.jwtSecret);
 }
 
 function authenticatedUser(request) {
@@ -49,13 +64,15 @@ function authenticatedUser(request) {
 async function handleApi(request, response, url) {
     const headers = securityHeaders();
     if (request.method === 'POST' && url.pathname === '/api/auth/login') {
-        const limiter = rateLimit(`login:${request.socket.remoteAddress || 'unknown'}`);
-        if (!limiter.allowed) return sendJson(response, 429, { error: 'Trop de tentatives. Réessayez plus tard.' }, { ...headers, 'Retry-After': limiter.retryAfter });
         try {
-            const { email, password } = await readJson(request);
+            const { csrfToken, email, password } = await readJson(request);
+            // Le token vient du champ hidden et doit aussi être envoyé par un header personnalisé.
+            if (!hasValidCsrfToken(request, csrfToken)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
+            const limiter = rateLimit(`login:${request.socket.remoteAddress || 'unknown'}`);
+            if (!limiter.allowed) return sendJson(response, 429, { error: 'Trop de tentatives. Réessayez plus tard.' }, { ...headers, 'Retry-After': limiter.retryAfter });
             const normalizedEmail = String(email || '').trim().toLowerCase();
             const user = findUserByEmail(normalizedEmail);
-            if (!user || !verifyPassword(String(password || ''), user.password_hash)) return sendJson(response, 401, { error: 'Identifiants invalides.' }, headers);
+            if (!user || !(await verifyPassword(String(password || ''), user.password_hash))) return sendJson(response, 401, { error: 'Identifiants invalides.' }, headers);
             const token = signJwt({ sub: String(user.id), role: user.role }, config.jwtSecret, config.tokenTtlSeconds);
             return sendJson(response, 200, { user: { id: user.id, email: user.email, role: user.role } }, { ...headers, 'Set-Cookie': serializeCookie(config.cookieName, token, { maxAge: config.tokenTtlSeconds, secure: config.nodeEnv === 'production' }) });
         } catch {
@@ -79,6 +96,8 @@ async function handleApi(request, response, url) {
 }
 
 async function serveStatic(response, url) {
+    const headers = securityHeaders();
+
     // Chaque écran possède son propre document HTML.
     const pages = {
         '/': '/login.html',
@@ -87,7 +106,7 @@ async function serveStatic(response, url) {
     };
     const requested = pages[url.pathname] || url.pathname;
     let filePath = normalize(join(root, requested));
-    if (!filePath.startsWith(root)) return response.writeHead(403).end();
+    if (!filePath.startsWith(root)) return response.writeHead(403, headers).end();
     try {
         let file;
         try {
@@ -97,17 +116,22 @@ async function serveStatic(response, url) {
             file = await stat(filePath);
         }
         if (!file.isFile()) throw new Error('Not a file');
-        response.writeHead(200, { 'Content-Type': mimeTypes[extname(filePath)] || 'application/octet-stream', ...securityHeaders() });
+        const responseHeaders = { 'Content-Type': mimeTypes[extname(filePath)] || 'application/octet-stream', ...headers };
+        response.writeHead(200, responseHeaders);
+        if (url.pathname === '/' || url.pathname === '/login') {
+            const html = await readFile(filePath, 'utf8');
+            return response.end(html.replace('{{CSRF_TOKEN}}', signCsrfToken(config.jwtSecret, config.tokenTtlSeconds)));
+        }
         createReadStream(filePath).pipe(response);
     } catch {
-        response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
+        response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...headers }).end('Not found');
     }
 }
 
 const server = createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
     if (url.pathname.startsWith('/api/')) return handleApi(request, response, url);
-    if (request.method !== 'GET') return response.writeHead(405, { Allow: 'GET' }).end();
+    if (request.method !== 'GET') return response.writeHead(405, { Allow: 'GET', ...securityHeaders() }).end();
     return serveStatic(response, url);
 });
 
