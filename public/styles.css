@@ -124,19 +124,14 @@ em {
     content: '';
 }
 
-.login-figure,
-.hero-figure {
+.login-display,
+.hero-display {
     position: relative;
     z-index: 1;
     align-self: center;
     width: 12rem;
     height: 17rem;
     margin: auto;
-}
-
-.login-figure .figure-head {
-    width: 10rem;
-    height: 9.5rem;
 }
 
 .visual-caption {
@@ -377,7 +372,7 @@ form button[type='submit']:hover {
     font-size: 1.3rem;
 }
 
-.hero-figure {
+.hero-display {
     transform: translateY(1.5rem) scale(1.15);
 }
 
@@ -507,10 +502,10 @@ form button[type='submit']:hover {
     z-index: 1;
     display: grid;
     width: 7rem;
-    height: 8rem;
+    height: 9rem;
     place-items: center;
     border: 3px solid var(--ink);
-    border-radius: 46% 46% 38% 38%;
+    border-radius: 2px;
     color: #fff;
     background: var(--navy);
     box-shadow: 8px 8px 0 rgba(23, 25, 31, .18);
@@ -597,102 +592,118 @@ form button[type='submit']:hover {
     font-size: 1.3rem;
 }
 
-/* Shared CSS character used in the login and campaign illustrations. */
-.figure-head {
+/* Collector packaging creates a product-focused visual without character portraits. */
+.collector-box {
     position: absolute;
-    top: 0;
-    left: 1rem;
-    width: 10rem;
-    height: 9rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     border: 3px solid var(--ink);
-    border-radius: 48% 48% 42% 42%;
-    background: #f1c79f;
+    padding: 1rem;
+    color: var(--ink);
+    font: .7rem/1.1 'Courier New', monospace;
 }
 
-.figure-head::before {
+.collector-box small {
+    font-size: .55rem;
+    line-height: 1.2;
+}
+
+.collector-box strong {
+    font: 2.8rem Georgia, serif;
+}
+
+.collector-box span {
+    font-size: .55rem;
+}
+
+.box-back {
+    top: 1rem;
+    right: 0;
+    width: 8rem;
+    height: 12rem;
+    background: var(--blue);
+    transform: rotate(9deg);
+}
+
+.box-front {
+    bottom: 0;
+    left: 0;
+    width: 9rem;
+    height: 14rem;
+    background: #fff;
+    box-shadow: 8px 8px 0 var(--red);
+}
+
+.box-front::after {
     position: absolute;
-    top: -1rem;
-    left: -.2rem;
-    width: 9.8rem;
-    height: 3rem;
-    border: 3px solid var(--ink);
-    border-bottom: 0;
-    border-radius: 50% 50% 0 0;
-    background: #2b2940;
+    right: 1rem;
+    bottom: 1rem;
+    width: 2.5rem;
+    height: 3.5rem;
+    border: 2px solid var(--ink);
+    background: var(--yellow);
     content: '';
 }
 
-.eye {
+.display-label {
     position: absolute;
-    top: 4rem;
-    width: .65rem;
-    height: 1.1rem;
-    border-radius: 50%;
-    background: var(--ink);
-}
-
-.eye.left {
-    left: 2.6rem;
-}
-
-.eye.right {
-    right: 2.6rem;
-}
-
-.smile {
-    position: absolute;
-    bottom: 1.6rem;
-    left: 4.2rem;
-    width: 1.6rem;
-    height: .7rem;
-    border-bottom: 3px solid var(--ink);
-    border-radius: 50%;
-}
-
-.figure-body {
-    position: absolute;
-    bottom: 1.2rem;
-    left: 2.1rem;
-    width: 8rem;
-    height: 7rem;
-    display: grid;
-    place-items: center;
-    border: 3px solid var(--ink);
-    border-radius: 42% 42% 18% 18%;
+    top: -1.5rem;
+    right: -3rem;
+    z-index: 3;
+    padding: .6rem;
+    color: #fff;
     background: var(--red);
+    font: .65rem/1.1 'Courier New', monospace;
+    transform: rotate(8deg);
 }
 
-.shirt-star {
-    color: var(--yellow);
-    font-size: 2.5rem;
+.display-label strong {
+    font: 1.6rem Georgia, serif;
 }
 
-.figure-feet span {
+.archive-box {
     position: absolute;
-    bottom: 0;
-    width: 3.8rem;
-    height: 1.8rem;
-    border: 3px solid var(--ink);
-    border-radius: 50%;
-    background: var(--navy);
+    border: 2px solid #fff;
+    color: #fff;
+    font: .7rem/1.2 'Courier New', monospace;
 }
 
-.figure-feet span:first-child {
-    left: 1.2rem;
-}
-
-.figure-feet span:last-child {
-    right: 1.2rem;
-}
-
-.figure-shadow {
-    position: absolute;
+.archive-box-back {
+    top: 2.5rem;
     right: 0;
-    bottom: -.3rem;
+    padding: 1rem;
+    transform: rotate(8deg);
+}
+
+.archive-box-front {
+    bottom: 1rem;
     left: 0;
-    height: 1rem;
-    border-radius: 50%;
-    background: rgba(23, 25, 31, .25);
+    display: flex;
+    width: 11rem;
+    height: 13rem;
+    flex-direction: column;
+    justify-content: end;
+    gap: .3rem;
+    padding: 1rem;
+    background: var(--yellow);
+    border-color: var(--ink);
+    color: var(--ink);
+    box-shadow: 8px 8px 0 var(--red);
+    transform: rotate(-5deg);
+}
+
+.archive-box-front span {
+    font-size: 2.5rem;
+    letter-spacing: -.08em;
+}
+
+.archive-box-front strong {
+    font-size: 1.1rem;
+}
+
+.archive-box-front small {
+    font-size: .5rem;
 }
 
 @media (max-width: 900px) {
@@ -733,7 +744,7 @@ form button[type='submit']:hover {
         bottom: -12rem;
     }
 
-    .login-figure {
+    .login-display {
         position: absolute;
         right: 1rem;
         bottom: -2rem;
@@ -773,7 +784,7 @@ form button[type='submit']:hover {
         padding: 2.5rem 1.5rem;
     }
 
-    .hero-figure {
+    .hero-display {
         margin: 2rem auto 0;
         transform: scale(.85);
     }
