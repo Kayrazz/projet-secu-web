@@ -8,6 +8,7 @@ import { createAuthorizationMiddleware, getAuthenticatedUser } from './middlewar
 import { createPathTraversalMiddleware } from './middleware/path.js';
 import { createApiHandler } from './routes/api.js';
 import { signCsrfToken } from './security.js';
+import { logger } from './logger.js';
 
 const publicDirectory = join(fileURLToPath(new URL('..', import.meta.url)), 'public');
 
@@ -112,6 +113,7 @@ async function serveStaticFile(request, response) {
 
         createReadStream(filePath).pipe(response);
     } catch {
+        logger.warn('static.not_found');
         response.writeHead(404, {
             'Content-Type': 'text/plain; charset=utf-8',
             ...securityHeaders()
@@ -138,5 +140,5 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(config.port, () => {
-    console.log(`Shop server running at http://localhost:${config.port}`);
+    logger.info('server.started', { port: config.port, environment: config.nodeEnv });
 });

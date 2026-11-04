@@ -4,6 +4,7 @@ import { rateLimit } from '../rate-limit.js';
 import { safeEqual, serializeCookie, signJwt, verifyCsrfToken, verifyPassword } from '../security.js';
 import { isSafeOutboundUrl } from '../ssrf.js';
 import { saveUploadedImage } from '../upload.js';
+import { getClientIp, logger } from '../logger.js';
 
 async function readJson(request) {
     let body = '';
@@ -28,10 +29,11 @@ function isStoredImagePath(value) {
 export function createApiHandler({ config, headers, authorization, getUser, root }) {
     return async function handleApi(request, response, url) {
         const responseHeaders = headers();
-        const clientKey = request.socket.remoteAddress || 'unknown';
+        const clientKey = getClientIp(request);
         const apiLimiter = rateLimit(`api:${clientKey}`, config.apiRateLimit, config.apiRateLimitWindowMs);
 
         if (!apiLimiter.allowed) {
+            logger.warn('api.rate_limited', { ip: clientKey, method: request.method, route: url.pathname });
             return sendJson(response, 429, { error: 'Trop de requêtes. Réessayez plus tard.' }, {
                 ...responseHeaders,
                 'Retry-After': apiLimiter.retryAfter
@@ -43,6 +45,7 @@ export function createApiHandler({ config, headers, authorization, getUser, root
         }
 
         if (request.method === 'POST' && url.pathname === '/api/auth/logout') {
+            logger.info('auth.logout', { ip: clientKey });
             const cookie = serializeCookie(config.cookieName, '', {
                 maxAge: 0,
                 secure: config.nodeEnv === 'production'
@@ -86,11 +89,13 @@ async function login(request, response, headers, config, clientKey) {
     try {
         const { csrfToken, email, password } = await readJson(request);
         if (!hasValidCsrfToken(request, csrfToken, config.jwtSecret)) {
+            logger.warn('auth.csrf_rejected', { ip: clientKey });
             return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
         }
 
         const limiter = rateLimit(`login:${clientKey}`, config.loginRateLimit, config.loginRateLimitWindowMs);
         if (!limiter.allowed) {
+            logger.warn('auth.login_rate_limited', { ip: clientKey });
             return sendJson(response, 429, { error: 'Trop de tentatives. Réessayez plus tard.' }, {
                 ...headers,
                 'Retry-After': limiter.retryAfter
@@ -100,13 +105,17 @@ async function login(request, response, headers, config, clientKey) {
         const normalizedEmail = String(email || '').trim().toLowerCase();
         const user = findUserByEmail(normalizedEmail);
         const passwordIsValid = user && await verifyPassword(String(password || ''), user.password_hash);
-        if (!passwordIsValid) return sendJson(response, 401, { error: 'Identifiants invalides.' }, headers);
+        if (!passwordIsValid) {
+            logger.warn('auth.login_failed', { ip: clientKey, reason: 'invalid_credentials' });
+            return sendJson(response, 401, { error: 'Identifiants invalides.' }, headers);
+        }
 
         const token = signJwt({ sub: String(user.id), role: user.role }, config.jwtSecret, config.tokenTtlSeconds);
         const cookie = serializeCookie(config.cookieName, token, {
             maxAge: config.tokenTtlSeconds,
             secure: config.nodeEnv === 'production'
         });
+        logger.info('auth.login_succeeded', { ip: clientKey, role: user.role });
         return sendJson(response, 200, { user: { id: user.id, email: user.email, role: user.role } }, {
             ...headers,
             'Set-Cookie': cookie
@@ -130,7 +139,9 @@ async function manageFigurines(request, response, headers, config) {
         const validImage = isStoredImagePath(cleanImageUrl) || await isSafeOutboundUrl(cleanImageUrl);
         const invalid = !cleanName || cleanName.length > 120 || !cleanCategory || cleanCategory.length > 80 || !validImage || cleanImageUrl.length > 500 || !Number.isFinite(priceNumber) || priceNumber < 0 || priceNumber > 100000;
         if (invalid) return sendJson(response, 400, { error: 'Nom, catégorie ou URL d’image invalide.' }, headers);
-        return sendJson(response, 201, { figurine: createFigurine({ name: cleanName, category: cleanCategory, imageUrl: cleanImageUrl, price: priceNumber }) }, headers);
+        const figurine = createFigurine({ name: cleanName, category: cleanCategory, imageUrl: cleanImageUrl, price: priceNumber });
+        logger.info('admin.figurine_created', { ip: getClientIp(request), category: cleanCategory, price: priceNumber });
+        return sendJson(response, 201, { figurine }, headers);
     } catch {
         return sendJson(response, 400, { error: 'Requête JSON invalide.' }, headers);
     }
@@ -140,8 +151,10 @@ async function uploadImage(request, response, headers, config, root) {
     try {
         if (!verifyCsrfToken(request.headers['x-csrf-token'], config.jwtSecret)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
         const upload = await saveUploadedImage(request, join(root, 'uploads'));
+        logger.info('admin.upload_succeeded', { ip: getClientIp(request), mimeType: upload.mimeType, size: upload.size });
         return sendJson(response, 201, { imageUrl: upload.imageUrl, size: upload.size, mimeType: upload.mimeType }, headers);
     } catch (error) {
+        logger.warn('admin.upload_rejected', { ip: getClientIp(request), reason: error.message });
         const message = error.message === 'Fichier trop volumineux.'
             ? error.message
             : 'Upload refusé : type MIME, contenu ou token invalide.';
