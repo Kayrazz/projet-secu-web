@@ -7,6 +7,8 @@ const maxUploadBytes = Number(process.env.MAX_UPLOAD_BYTES || 5 * 1024 * 1024);
 export const config = {
     port,
     jwtSecret,
+    uploadDir: process.env.UPLOAD_DIR || '/public/uploads',
+    logsDir: process.env.LOGS_DIR || '/logs',
     nodeEnv: process.env.NODE_ENV || 'development',
     cookieName: 'shop_session',
     tokenTtlSeconds: 60 * 60,
