@@ -22,6 +22,7 @@ const submitButton = form.querySelector('button');
 form.addEventListener('submit', async event => {
     event.preventDefault();
     errorMessage.textContent = '';
+    if (!form.reportValidity()) return;
     submitButton.disabled = true;
 
     const formData = new FormData(form);

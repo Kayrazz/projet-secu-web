@@ -5,6 +5,14 @@ import { safeEqual, serializeCookie, signJwt, verifyCsrfToken, verifyPassword } 
 import { isSafeOutboundUrl } from '../ssrf.js';
 import { saveUploadedImage } from '../upload.js';
 import { getClientIp, logger } from '../logger.js';
+import {
+    cleanCatalogText,
+    isValidEmail,
+    isValidPassword,
+    normalizeEmail,
+    parsePositiveInteger,
+    parsePrice
+} from '../validation.js';
 
 async function readJson(request) {
     let body = '';
@@ -74,7 +82,8 @@ export function createApiHandler({ config, headers, authorization, getUser, root
 
         if (request.method === 'GET' && url.pathname === '/api/lab/broken-auth') {
             if (!config.enableBrokenAuthLab) return sendJson(response, 404, { error: 'Lab désactivé.' }, responseHeaders);
-            const requestedUserId = Number(url.searchParams.get('userId'));
+            const requestedUserId = parsePositiveInteger(url.searchParams.get('userId'));
+            if (requestedUserId === null) return sendJson(response, 400, { error: 'Identifiant utilisateur invalide.' }, responseHeaders);
             const user = findUserById(requestedUserId);
             return user
                 ? sendJson(response, 200, { warning: 'Démo broken authentication : identité contrôlée par le client.', user }, responseHeaders)
@@ -102,9 +111,12 @@ async function login(request, response, headers, config, clientKey) {
             });
         }
 
-        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const normalizedEmail = normalizeEmail(email);
+        if (!isValidEmail(normalizedEmail) || !isValidPassword(password)) {
+            return sendJson(response, 400, { error: 'Adresse email ou mot de passe invalide.' }, headers);
+        }
         const user = findUserByEmail(normalizedEmail);
-        const passwordIsValid = user && await verifyPassword(String(password || ''), user.password_hash);
+        const passwordIsValid = user && await verifyPassword(password, user.password_hash);
         if (!passwordIsValid) {
             logger.warn('auth.login_failed', { ip: clientKey, reason: 'invalid_credentials' });
             return sendJson(response, 401, { error: 'Identifiants invalides.' }, headers);
@@ -132,13 +144,13 @@ async function manageFigurines(request, response, headers, config) {
     try {
         const { csrfToken, name, category, imageUrl, price } = await readJson(request);
         if (!hasValidCsrfToken(request, csrfToken, config.jwtSecret)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
-        const cleanName = String(name || '').trim();
-        const cleanCategory = String(category || '').trim();
+        const cleanName = cleanCatalogText(name, 120);
+        const cleanCategory = cleanCatalogText(category, 80);
         const cleanImageUrl = String(imageUrl || '').trim();
-        const priceNumber = Number(String(price ?? '').replace(',', '.'));
+        const priceNumber = parsePrice(price);
         const validImage = isStoredImagePath(cleanImageUrl) || await isSafeOutboundUrl(cleanImageUrl);
-        const invalid = !cleanName || cleanName.length > 120 || !cleanCategory || cleanCategory.length > 80 || !validImage || cleanImageUrl.length > 500 || !Number.isFinite(priceNumber) || priceNumber < 0 || priceNumber > 100000;
-        if (invalid) return sendJson(response, 400, { error: 'Nom, catégorie ou URL d’image invalide.' }, headers);
+        const invalid = !cleanName || !cleanCategory || !validImage || cleanImageUrl.length > 500 || priceNumber === null;
+        if (invalid) return sendJson(response, 400, { error: 'Nom, catégorie, prix ou URL d’image invalide.' }, headers);
         const figurine = createFigurine({ name: cleanName, category: cleanCategory, imageUrl: cleanImageUrl, price: priceNumber });
         logger.info('admin.figurine_created', { ip: getClientIp(request), category: cleanCategory, price: priceNumber });
         return sendJson(response, 201, { figurine }, headers);
@@ -150,7 +162,7 @@ async function manageFigurines(request, response, headers, config) {
 async function uploadImage(request, response, headers, config, root) {
     try {
         if (!verifyCsrfToken(request.headers['x-csrf-token'], config.jwtSecret)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
-        const upload = await saveUploadedImage(request, join(root, 'uploads'));
+        const upload = await saveUploadedImage(request, join(root, 'uploads'), config.maxUploadBytes);
         logger.info('admin.upload_succeeded', { ip: getClientIp(request), mimeType: upload.mimeType, size: upload.size });
         return sendJson(response, 201, { imageUrl: upload.imageUrl, size: upload.size, mimeType: upload.mimeType }, headers);
     } catch (error) {

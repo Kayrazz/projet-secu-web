@@ -108,7 +108,10 @@ async function serveStaticFile(request, response) {
 
         if (pathname === '/' || pathname === '/login' || pathname === '/admin') {
             const html = await readFile(filePath, 'utf8');
-            return response.end(html.replace('{{CSRF_TOKEN}}', signCsrfToken(config.jwtSecret, config.tokenTtlSeconds)));
+            return response.end(html
+                .replace('{{CSRF_TOKEN}}', signCsrfToken(config.jwtSecret, config.tokenTtlSeconds))
+                .replace('{{MAX_UPLOAD_BYTES}}', String(config.maxUploadBytes))
+                .replace('{{MAX_UPLOAD_SIZE_MB}}', String(config.maxUploadBytes / (1024 * 1024))));
         }
 
         createReadStream(filePath).pipe(response);

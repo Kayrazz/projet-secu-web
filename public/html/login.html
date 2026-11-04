@@ -30,10 +30,12 @@
             <form id="login-form">
 
                 <label for="email">Adresse email</label>
-                <input id="email" name="email" type="email" autocomplete="email" required value="demo@example.com">
+                <input id="email" name="email" type="email" autocomplete="email" maxlength="254" required
+                    value="demo@example.com">
 
                 <label for="password">Mot de passe</label>
-                <input id="password" name="password" type="password" autocomplete="current-password" required>
+                <input id="password" name="password" type="password" autocomplete="current-password" minlength="8"
+                    maxlength="128" required>
                 <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
 
                 <button type="submit">

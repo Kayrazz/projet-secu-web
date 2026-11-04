@@ -92,9 +92,15 @@ async function uploadImage(file, csrfToken) {
 form.addEventListener('submit', async event => {
     event.preventDefault();
     formMessage.textContent = '';
+    if (!form.reportValidity()) return;
     submitButton.disabled = true;
 
     const formData = new FormData(form);
+    const imageFile = formData.get('image_file');
+    if (!(imageFile instanceof File) || imageFile.size === 0 || imageFile.size > 5 * 1024 * 1024) {
+        formMessage.textContent = 'Sélectionnez une image valide de 5 Mo maximum.';
+        return;
+    }
     const payload = {
         csrfToken: formData.get('csrf_token'),
         name: formData.get('name'),
@@ -103,7 +109,7 @@ form.addEventListener('submit', async event => {
     };
 
     try {
-        const { imageUrl } = await uploadImage(formData.get('image_file'), payload.csrfToken);
+        const { imageUrl } = await uploadImage(imageFile, payload.csrfToken);
         payload.imageUrl = imageUrl;
         await request('/api/admin/figurines', {
             method: 'POST',
