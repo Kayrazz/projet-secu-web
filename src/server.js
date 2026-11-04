@@ -10,12 +10,21 @@ import { createPathTraversalMiddleware } from './middleware/path.js';
 import { rateLimit } from './rate-limit.js';
 import { safeEqual, serializeCookie, signCsrfToken, signJwt, verifyCsrfToken, verifyJwt, verifyPassword } from './security.js';
 import { isSafeOutboundUrl } from './ssrf.js';
+import { saveUploadedImage } from './upload.js';
+
+function isStoredImagePath(value) {
+    return /^\/uploads\/[a-f0-9-]+\.(jpg|png|gif|webp)$/.test(value);
+}
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)), 'public');
 const mimeTypes = {
     '.css': 'text/css; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
-    '.html': 'text/html; charset=utf-8'
+    '.html': 'text/html; charset=utf-8',
+    '.jpg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp'
 };
 
 function sendJson(response, status, payload, headers = {}) {
@@ -154,11 +163,12 @@ async function handleApi(request, response, url) {
                     const cleanCategory = String(category || '').trim();
                     const cleanImageUrl = String(imageUrl || '').trim();
                     const priceNumber = Number(String(price ?? '').replace(',', '.'));
+                    const validImage = isStoredImagePath(cleanImageUrl) || await isSafeOutboundUrl(cleanImageUrl);
                     const invalidFigurine = !cleanName
                         || cleanName.length > 120
                         || !cleanCategory
                         || cleanCategory.length > 80
-                        || !(await isSafeOutboundUrl(cleanImageUrl))
+                        || !validImage
                         || cleanImageUrl.length > 500
                         || !Number.isFinite(priceNumber)
                         || priceNumber < 0
@@ -173,6 +183,22 @@ async function handleApi(request, response, url) {
                 }
             }
             return sendJson(response, 405, { error: 'Méthode non autorisée.' }, { ...headers, Allow: 'GET, POST' });
+        });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/admin/uploads') {
+        return authorization.requireRole('admin')(request, response, async () => {
+            try {
+                if (!verifyCsrfToken(request.headers['x-csrf-token'], config.jwtSecret)) {
+                    return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
+                }
+                const upload = await saveUploadedImage(request, join(root, 'uploads'));
+                return sendJson(response, 201, { imageUrl: upload.imageUrl, size: upload.size, mimeType: upload.mimeType }, headers);
+            } catch (error) {
+                const message = error.message === 'Fichier trop volumineux.'
+                    ? error.message
+                    : 'Upload refusé : type MIME, contenu ou token invalide.';
+                return sendJson(response, 400, { error: message }, headers);
+            }
         });
     }
 

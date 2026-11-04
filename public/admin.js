@@ -2,12 +2,18 @@
 import { createSafeImage } from './dom-security.js';
 
 async function request(path, options = {}) {
+    const requestHeaders = {
+        ...options.headers
+    };
+
+    // Le navigateur ajoute lui-même la boundary multipart pour FormData.
+    if (!(options.body instanceof FormData)) {
+        requestHeaders['Content-Type'] = 'application/json';
+    }
+
     const response = await fetch(path, {
         credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-        },
+        headers: requestHeaders,
         ...options
     });
 
@@ -71,6 +77,17 @@ async function loadAdminSession() {
     }
 }
 
+async function uploadImage(file, csrfToken) {
+    const formData = new FormData();
+    formData.append('image_file', file, file.name);
+
+    return request('/api/admin/uploads', {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': csrfToken },
+        body: formData
+    });
+}
+
 // Crée une figurine avec le token CSRF présent dans le formulaire.
 form.addEventListener('submit', async event => {
     event.preventDefault();
@@ -82,11 +99,12 @@ form.addEventListener('submit', async event => {
         csrfToken: formData.get('csrf_token'),
         name: formData.get('name'),
         category: formData.get('category'),
-        imageUrl: formData.get('image_url'),
         price: formData.get('price')
     };
 
     try {
+        const { imageUrl } = await uploadImage(formData.get('image_file'), payload.csrfToken);
+        payload.imageUrl = imageUrl;
         await request('/api/admin/figurines', {
             method: 'POST',
             headers: { 'X-CSRF-Token': readCsrfToken() },
