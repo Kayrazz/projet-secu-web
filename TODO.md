@@ -11,12 +11,12 @@ framework.
 [X] - En-tête HTTP (MIME Sniffing…)
 ‣ Dont politique CSP
 [X] - Défense contre l’injection SQL (usage de requêtes préparées)
-[ ] - Réponses HTTP et JSON
+[X] - Réponses HTTP et JSON
 [X] - Token CSRF
 [X] - Contrôle anti SSRF
 [X] - Autorisations (rôles et permissions)
 [X] - Contrôle anti Path Traversal
-[ ] - Upload sécurisé (taille, type MIME, whitelist…)
+[X] - Upload sécurisé (taille, type MIME, whitelist…)
 [X] - Templating / filtrage contre le XSS
 [X] - Rate limiting (fenêtre fixe pour simplifier)
 [ ] - Logging des éléments qui vous semblent importants
