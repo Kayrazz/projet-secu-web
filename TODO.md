@@ -13,12 +13,12 @@ framework.
 [X] - Défense contre l’injection SQL (usage de requêtes préparées)
 [ ] - Réponses HTTP et JSON
 [X] - Token CSRF
-[ ] - Contrôle anti SSRF
-[ ] - Autorisations (rôles et permissions)
-[ ] - Contrôle anti Path Traversal
+[X] - Contrôle anti SSRF
+[X] - Autorisations (rôles et permissions)
+[X] - Contrôle anti Path Traversal
 [ ] - Upload sécurisé (taille, type MIME, whitelist…)
-[ ] - Templating / filtrage contre le XSS
-[ ] - Rate limiting (fenêtre fixe pour simplifier)
+[X] - Templating / filtrage contre le XSS
+[X] - Rate limiting (fenêtre fixe pour simplifier)
 [ ] - Logging des éléments qui vous semblent importants
 [ ] - Validation des données (entiers, regex…)
 
@@ -30,7 +30,7 @@ la sécurité pure, mais dont l’étude est intéressante :
 [ ] - Routes sécurisées (signed routes / magic links)
 [ ] - Système de middleware
 [ ] - Système de migrations / seeding de la base de données
-[ ] - Lecture du .env / variables d’environnements
+[X] - Lecture du .env / variables d’environnements
 [ ] - Gestionnaires d’exeptions (que faire lorsqu’une erreur critique se produit ?)
 [ ] - Injection de dépendances
 
