@@ -19,7 +19,7 @@ framework.
 [X] - Upload sécurisé (taille, type MIME, whitelist…)
 [X] - Templating / filtrage contre le XSS
 [X] - Rate limiting (fenêtre fixe pour simplifier)
-[ ] - Logging des éléments qui vous semblent importants
+[X] - Logging des éléments qui vous semblent importants
 [ ] - Validation des données (entiers, regex…)
 
 Bonus selon temps disponible
@@ -35,23 +35,23 @@ la sécurité pure, mais dont l’étude est intéressante :
 [ ] - Injection de dépendances
 
 # TODO saisie à la mains:
-[ ] - Encodages(Contournements)
-[ ] - XSS(Stored,reflected,Dom Based)
-[ ] - CSRF
-[ ] - SSRF
-[ ] - SQLI(Boolean, time-based)
+[X] - Encodages(Contournements)
+[X] - XSS(Stored,reflected,Dom Based)
+[X] - CSRF
+[X] - SSRF
+[X] - SQLI(Boolean, time-based)
 
-[ ] - COOKIES
-[ ] - JWT
+[X] - COOKIES
+[X] - JWT
 [ ] - SOP(Same Origin Policy)
-[ ] - Clickjacking et headers
-[ ] - CSP
+[X] - Clickjacking et headers
+[X] - CSP
 [ ] - RBAC
 [ ] - IDDR
 
-[ ] - Path Traversal
-[ ] - Uploads
-[ ] - Rate Limiting
+[X] - Path Traversal
+[X] - Uploads
+[X] - Rate Limiting
 [ ] - Broken Authentication
 [ ] - Loys(RGPD/CNIL)
 
