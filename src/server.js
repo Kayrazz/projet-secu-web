@@ -7,6 +7,7 @@ import { config } from './config.js';
 import { createFigurine, findUserByEmail, findUserById, listFigurines } from './db.js';
 import { rateLimit } from './rate-limit.js';
 import { parseCookies, safeEqual, serializeCookie, signCsrfToken, signJwt, verifyCsrfToken, verifyJwt, verifyPassword } from './security.js';
+import { isSafeOutboundUrl } from './ssrf.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)), 'public');
 const mimeTypes = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8' };
@@ -66,14 +67,6 @@ function authenticatedAdmin(request) {
     return user?.role === 'admin' ? user : null;
 }
 
-function isValidImageUrl(value) {
-    try {
-        return new URL(value).protocol === 'https:';
-    } catch {
-        return false;
-    }
-}
-
 async function handleApi(request, response, url) {
     const headers = securityHeaders();
     if (request.method === 'POST' && url.pathname === '/api/auth/login') {
@@ -114,7 +107,7 @@ async function handleApi(request, response, url) {
                 const cleanCategory = String(category || '').trim();
                 const cleanImageUrl = String(imageUrl || '').trim();
                 const priceNumber = Number(String(price ?? '').replace(',', '.'));
-                if (!cleanName || cleanName.length > 120 || !cleanCategory || cleanCategory.length > 80 || !isValidImageUrl(cleanImageUrl) || cleanImageUrl.length > 500 || !Number.isFinite(priceNumber) || priceNumber < 0 || priceNumber > 100000) {
+                if (!cleanName || cleanName.length > 120 || !cleanCategory || cleanCategory.length > 80 || !(await isSafeOutboundUrl(cleanImageUrl)) || cleanImageUrl.length > 500 || !Number.isFinite(priceNumber) || priceNumber < 0 || priceNumber > 100000) {
                     return sendJson(response, 400, { error: 'Nom, catégorie ou URL d’image invalide.' }, headers);
                 }
                 return sendJson(response, 201, { figurine: createFigurine({ name: cleanName, category: cleanCategory, imageUrl: cleanImageUrl, price: priceNumber }) }, headers);
