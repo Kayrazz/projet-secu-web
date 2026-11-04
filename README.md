@@ -32,6 +32,11 @@ Variables utiles : copiez `.env.example` vers `.env` et exportez-les dans votre 
 - `src/rate-limit.js` : limitation des tentatives de connexion par IP.
 - `data/schema.sql` : schéma SQL du compte utilisateur.
 - `public/app.js` : routing front avec History API et garde d'authentification.
+- `src/model-binding.js` : résolution et validation des modèles depuis les paramètres de route.
+
+La route `GET /api/figurines/:id` utilise le model binding : l’identifiant est validé avant
+la recherche paramétrée en base, et renvoie `400` pour un identifiant invalide ou `404`
+si la figurine n’existe pas.
 
 ## Limites assumées
 

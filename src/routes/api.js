@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import { createFigurine, findUserByEmail, findUserById, listFigurines } from '../db.js';
+import { createFigurine, findFigurineById, findUserByEmail, findUserById, listFigurines } from '../db.js';
+import { bindModel, ModelBindingError } from '../model-binding.js';
 import { rateLimit } from '../rate-limit.js';
 import { safeEqual, serializeCookie, signJwt, verifyCsrfToken, verifyPassword } from '../security.js';
 import { isSafeOutboundUrl } from '../ssrf.js';
@@ -70,6 +71,21 @@ export function createApiHandler({ config, headers, authorization, getUser, root
 
         if (request.method === 'GET' && url.pathname === '/api/figurines') {
             return sendJson(response, 200, { figurines: listFigurines() }, responseHeaders);
+        }
+
+        if (request.method === 'GET' && url.pathname.startsWith('/api/figurines/')) {
+            try {
+                const figurine = bindModel(url.pathname, {
+                    pattern: /^\/api\/figurines\/(?<id>[^/]+)$/,
+                    parameter: 'id',
+                    parse: parsePositiveInteger,
+                    find: findFigurineById
+                });
+                return sendJson(response, 200, { figurine }, responseHeaders);
+            } catch (error) {
+                if (!(error instanceof ModelBindingError)) throw error;
+                return sendJson(response, error.status, { error: error.message }, responseHeaders);
+            }
         }
 
         if (url.pathname === '/api/admin/figurines') {

@@ -33,6 +33,10 @@ export function listFigurines() {
     return database.prepare('SELECT id, name, category, image_url, price, created_at FROM figurines ORDER BY id DESC').all();
 }
 
+export function findFigurineById(id) {
+    return database.prepare('SELECT id, name, category, image_url, price, created_at FROM figurines WHERE id = ?').get(id);
+}
+
 export function createFigurine({ name, category, imageUrl, price }) {
     const result = database.prepare('INSERT INTO figurines (name, category, image_url, price) VALUES (?, ?, ?, ?)').run(name, category, imageUrl, price);
     return database.prepare('SELECT id, name, category, image_url, price, created_at FROM figurines WHERE id = ?').get(Number(result.lastInsertRowid));
