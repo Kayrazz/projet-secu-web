@@ -21,7 +21,7 @@ function sendJson(response, status, payload, headers = {}) {
 
 function securityHeaders() {
     const headers = {
-        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; frame-ancestors 'none'",
+        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'",
         // Interdit l'intégration de la boutique dans une iframe.
         'X-Frame-Options': 'DENY',
         // Empêche le navigateur de deviner un autre type MIME.
