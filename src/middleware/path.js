@@ -1,4 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { getClientIp, logger } from '../logger.js';
 
 export function createPathTraversalMiddleware(root, deny) {
     return (request, response, next) => {
@@ -6,6 +7,7 @@ export function createPathTraversalMiddleware(root, deny) {
         try {
             pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
         } catch {
+            logger.warn('path.invalid_encoding', { ip: getClientIp(request) });
             return deny(response, 400, 'Chemin invalide.');
         }
 
@@ -15,7 +17,10 @@ export function createPathTraversalMiddleware(root, deny) {
             || relativePath.startsWith(`..${sep}`)
             || isAbsolute(relativePath);
 
-        if (outsideRoot) return deny(response, 403, 'Chemin interdit.');
+        if (outsideRoot) {
+            logger.warn('path.traversal_rejected', { ip: getClientIp(request) });
+            return deny(response, 403, 'Chemin interdit.');
+        }
         request.safePathname = pathname;
         request.safeFilePath = filePath;
         return next();
