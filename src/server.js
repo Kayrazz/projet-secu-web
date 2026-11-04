@@ -1,11 +1,12 @@
 import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { extname, join, normalize } from 'node:path';
+import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { createFigurine, findUserByEmail, listFigurines } from './db.js';
 import { createAuthorizationMiddleware, getAuthenticatedUser } from './middleware/authorization.js';
+import { createPathTraversalMiddleware } from './middleware/path.js';
 import { rateLimit } from './rate-limit.js';
 import { safeEqual, serializeCookie, signCsrfToken, signJwt, verifyCsrfToken, verifyJwt, verifyPassword } from './security.js';
 import { isSafeOutboundUrl } from './ssrf.js';
@@ -116,6 +117,11 @@ const authorization = createAuthorizationMiddleware({
     deny: (response, status, message) => sendJson(response, status, { error: message }, securityHeaders())
 });
 
+const pathTraversalMiddleware = createPathTraversalMiddleware(root, (response, status, message) => {
+    response.writeHead(status, { ...securityHeaders(), 'Content-Type': 'text/plain; charset=utf-8' });
+    response.end(message);
+});
+
 async function serveStatic(request, response, url) {
     const headers = securityHeaders();
 
@@ -128,6 +134,11 @@ async function serveStatic(request, response, url) {
         if (!allowed) return;
     }
 
+    return pathTraversalMiddleware(request, response, () => serveStaticFile(request, response, url));
+}
+
+async function serveStaticFile(request, response, url) {
+    const headers = securityHeaders();
     // Chaque écran possède son propre document HTML.
     const pages = {
         '/': '/login.html',
@@ -135,9 +146,9 @@ async function serveStatic(request, response, url) {
         '/app': '/app.html',
         '/admin': '/admin.html'
     };
-    const requested = pages[url.pathname] || url.pathname;
-    let filePath = normalize(join(root, requested));
-    if (!filePath.startsWith(root)) return response.writeHead(403, headers).end();
+    const pathname = request.safePathname;
+    const requested = pages[pathname] || pathname;
+    let filePath = join(root, requested);
     try {
         let file;
         try {
@@ -149,7 +160,7 @@ async function serveStatic(request, response, url) {
         if (!file.isFile()) throw new Error('Not a file');
         const responseHeaders = { 'Content-Type': mimeTypes[extname(filePath)] || 'application/octet-stream', ...headers };
         response.writeHead(200, responseHeaders);
-        if (url.pathname === '/' || url.pathname === '/login' || url.pathname === '/admin') {
+        if (pathname === '/' || pathname === '/login' || pathname === '/admin') {
             const html = await readFile(filePath, 'utf8');
             return response.end(html.replace('{{CSRF_TOKEN}}', signCsrfToken(config.jwtSecret, config.tokenTtlSeconds)));
         }
