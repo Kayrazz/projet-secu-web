@@ -4,9 +4,10 @@ import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
-import { createFigurine, findUserByEmail, findUserById, listFigurines } from './db.js';
+import { createFigurine, findUserByEmail, listFigurines } from './db.js';
+import { createAuthorizationMiddleware, getAuthenticatedUser } from './middleware/authorization.js';
 import { rateLimit } from './rate-limit.js';
-import { parseCookies, safeEqual, serializeCookie, signCsrfToken, signJwt, verifyCsrfToken, verifyJwt, verifyPassword } from './security.js';
+import { safeEqual, serializeCookie, signCsrfToken, signJwt, verifyCsrfToken, verifyJwt, verifyPassword } from './security.js';
 import { isSafeOutboundUrl } from './ssrf.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)), 'public');
@@ -51,22 +52,6 @@ function hasValidCsrfToken(request, formToken) {
         && verifyCsrfToken(formToken, config.jwtSecret);
 }
 
-function authenticatedUser(request) {
-    const token = parseCookies(request)[config.cookieName];
-    if (!token) return null;
-    try {
-        const claims = verifyJwt(token, config.jwtSecret);
-        return findUserById(Number(claims.sub));
-    } catch {
-        return null;
-    }
-}
-
-function authenticatedAdmin(request) {
-    const user = authenticatedUser(request);
-    return user?.role === 'admin' ? user : null;
-}
-
 async function handleApi(request, response, url) {
     const headers = securityHeaders();
     if (request.method === 'POST' && url.pathname === '/api/auth/login') {
@@ -89,33 +74,33 @@ async function handleApi(request, response, url) {
         return sendJson(response, 200, { ok: true }, { ...headers, 'Set-Cookie': serializeCookie(config.cookieName, '', { maxAge: 0, secure: config.nodeEnv === 'production' }) });
     }
     if (request.method === 'GET' && url.pathname === '/api/auth/me') {
-        const user = authenticatedUser(request);
+        const user = getAuthenticatedUser(request, config.cookieName, config.jwtSecret);
         return user ? sendJson(response, 200, { user }, headers) : sendJson(response, 401, { error: 'Authentification requise.' }, headers);
     }
     if (request.method === 'GET' && url.pathname === '/api/figurines') {
         return sendJson(response, 200, { figurines: listFigurines() }, headers);
     }
     if (url.pathname === '/api/admin/figurines') {
-        if (!authenticatedUser(request)) return sendJson(response, 401, { error: 'Authentification requise.' }, headers);
-        if (!authenticatedAdmin(request)) return sendJson(response, 403, { error: 'Accès administrateur requis.' }, headers);
-        if (request.method === 'GET') return sendJson(response, 200, { figurines: listFigurines() }, headers);
-        if (request.method === 'POST') {
-            try {
-                const { csrfToken, name, category, imageUrl, price } = await readJson(request);
-                if (!hasValidCsrfToken(request, csrfToken)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
-                const cleanName = String(name || '').trim();
-                const cleanCategory = String(category || '').trim();
-                const cleanImageUrl = String(imageUrl || '').trim();
-                const priceNumber = Number(String(price ?? '').replace(',', '.'));
-                if (!cleanName || cleanName.length > 120 || !cleanCategory || cleanCategory.length > 80 || !(await isSafeOutboundUrl(cleanImageUrl)) || cleanImageUrl.length > 500 || !Number.isFinite(priceNumber) || priceNumber < 0 || priceNumber > 100000) {
-                    return sendJson(response, 400, { error: 'Nom, catégorie ou URL d’image invalide.' }, headers);
+        return authorization.requireRole('admin')(request, response, async () => {
+            if (request.method === 'GET') return sendJson(response, 200, { figurines: listFigurines() }, headers);
+            if (request.method === 'POST') {
+                try {
+                    const { csrfToken, name, category, imageUrl, price } = await readJson(request);
+                    if (!hasValidCsrfToken(request, csrfToken)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
+                    const cleanName = String(name || '').trim();
+                    const cleanCategory = String(category || '').trim();
+                    const cleanImageUrl = String(imageUrl || '').trim();
+                    const priceNumber = Number(String(price ?? '').replace(',', '.'));
+                    if (!cleanName || cleanName.length > 120 || !cleanCategory || cleanCategory.length > 80 || !(await isSafeOutboundUrl(cleanImageUrl)) || cleanImageUrl.length > 500 || !Number.isFinite(priceNumber) || priceNumber < 0 || priceNumber > 100000) {
+                        return sendJson(response, 400, { error: 'Nom, catégorie ou URL d’image invalide.' }, headers);
+                    }
+                    return sendJson(response, 201, { figurine: createFigurine({ name: cleanName, category: cleanCategory, imageUrl: cleanImageUrl, price: priceNumber }) }, headers);
+                } catch {
+                    return sendJson(response, 400, { error: 'Requête JSON invalide.' }, headers);
                 }
-                return sendJson(response, 201, { figurine: createFigurine({ name: cleanName, category: cleanCategory, imageUrl: cleanImageUrl, price: priceNumber }) }, headers);
-            } catch {
-                return sendJson(response, 400, { error: 'Requête JSON invalide.' }, headers);
             }
-        }
-        return sendJson(response, 405, { error: 'Méthode non autorisée.' }, { ...headers, Allow: 'GET, POST' });
+            return sendJson(response, 405, { error: 'Méthode non autorisée.' }, { ...headers, Allow: 'GET, POST' });
+        });
     }
     if (request.method === 'GET' && url.pathname === '/api/lab/broken-auth') {
         if (!config.enableBrokenAuthLab) return sendJson(response, 404, { error: 'Lab désactivé.' }, headers);
@@ -126,14 +111,21 @@ async function handleApi(request, response, url) {
     return sendJson(response, 404, { error: 'Route API introuvable.' }, headers);
 }
 
+const authorization = createAuthorizationMiddleware({
+    getUser: request => getAuthenticatedUser(request, config.cookieName, config.jwtSecret),
+    deny: (response, status, message) => sendJson(response, status, { error: message }, securityHeaders())
+});
+
 async function serveStatic(request, response, url) {
     const headers = securityHeaders();
 
     // Le backoffice est protégé avant même de servir son document HTML.
     if (url.pathname === '/admin') {
-        const user = authenticatedUser(request);
-        if (!user) return response.writeHead(401, headers).end('Authentification requise.');
-        if (user.role !== 'admin') return response.writeHead(403, headers).end('Accès administrateur requis.');
+        let allowed = false;
+        await authorization.requireRole('admin')(request, response, async () => {
+            allowed = true;
+        });
+        if (!allowed) return;
     }
 
     // Chaque écran possède son propre document HTML.
