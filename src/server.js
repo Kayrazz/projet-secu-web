@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
-import { findUserByEmail, findUserById } from './db.js';
+import { createFigurine, findUserByEmail, findUserById, listFigurines } from './db.js';
 import { rateLimit } from './rate-limit.js';
 import { parseCookies, safeEqual, serializeCookie, signCsrfToken, signJwt, verifyCsrfToken, verifyJwt, verifyPassword } from './security.js';
 
@@ -18,7 +18,7 @@ function sendJson(response, status, payload, headers = {}) {
 
 function securityHeaders() {
     const headers = {
-        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; frame-ancestors 'none'",
         // Interdit l'intégration de la boutique dans une iframe.
         'X-Frame-Options': 'DENY',
         // Empêche le navigateur de deviner un autre type MIME.
@@ -61,6 +61,19 @@ function authenticatedUser(request) {
     }
 }
 
+function authenticatedAdmin(request) {
+    const user = authenticatedUser(request);
+    return user?.role === 'admin' ? user : null;
+}
+
+function isValidImageUrl(value) {
+    try {
+        return new URL(value).protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
 async function handleApi(request, response, url) {
     const headers = securityHeaders();
     if (request.method === 'POST' && url.pathname === '/api/auth/login') {
@@ -86,6 +99,31 @@ async function handleApi(request, response, url) {
         const user = authenticatedUser(request);
         return user ? sendJson(response, 200, { user }, headers) : sendJson(response, 401, { error: 'Authentification requise.' }, headers);
     }
+    if (request.method === 'GET' && url.pathname === '/api/figurines') {
+        return sendJson(response, 200, { figurines: listFigurines() }, headers);
+    }
+    if (url.pathname === '/api/admin/figurines') {
+        if (!authenticatedUser(request)) return sendJson(response, 401, { error: 'Authentification requise.' }, headers);
+        if (!authenticatedAdmin(request)) return sendJson(response, 403, { error: 'Accès administrateur requis.' }, headers);
+        if (request.method === 'GET') return sendJson(response, 200, { figurines: listFigurines() }, headers);
+        if (request.method === 'POST') {
+            try {
+                const { csrfToken, name, category, imageUrl, price } = await readJson(request);
+                if (!hasValidCsrfToken(request, csrfToken)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
+                const cleanName = String(name || '').trim();
+                const cleanCategory = String(category || '').trim();
+                const cleanImageUrl = String(imageUrl || '').trim();
+                const priceNumber = Number(String(price ?? '').replace(',', '.'));
+                if (!cleanName || cleanName.length > 120 || !cleanCategory || cleanCategory.length > 80 || !isValidImageUrl(cleanImageUrl) || cleanImageUrl.length > 500 || !Number.isFinite(priceNumber) || priceNumber < 0 || priceNumber > 100000) {
+                    return sendJson(response, 400, { error: 'Nom, catégorie ou URL d’image invalide.' }, headers);
+                }
+                return sendJson(response, 201, { figurine: createFigurine({ name: cleanName, category: cleanCategory, imageUrl: cleanImageUrl, price: priceNumber }) }, headers);
+            } catch {
+                return sendJson(response, 400, { error: 'Requête JSON invalide.' }, headers);
+            }
+        }
+        return sendJson(response, 405, { error: 'Méthode non autorisée.' }, { ...headers, Allow: 'GET, POST' });
+    }
     if (request.method === 'GET' && url.pathname === '/api/lab/broken-auth') {
         if (!config.enableBrokenAuthLab) return sendJson(response, 404, { error: 'Lab désactivé.' }, headers);
         const requestedUserId = Number(url.searchParams.get('userId'));
@@ -95,14 +133,22 @@ async function handleApi(request, response, url) {
     return sendJson(response, 404, { error: 'Route API introuvable.' }, headers);
 }
 
-async function serveStatic(response, url) {
+async function serveStatic(request, response, url) {
     const headers = securityHeaders();
+
+    // Le backoffice est protégé avant même de servir son document HTML.
+    if (url.pathname === '/admin') {
+        const user = authenticatedUser(request);
+        if (!user) return response.writeHead(401, headers).end('Authentification requise.');
+        if (user.role !== 'admin') return response.writeHead(403, headers).end('Accès administrateur requis.');
+    }
 
     // Chaque écran possède son propre document HTML.
     const pages = {
         '/': '/login.html',
         '/login': '/login.html',
-        '/app': '/app.html'
+        '/app': '/app.html',
+        '/admin': '/admin.html'
     };
     const requested = pages[url.pathname] || url.pathname;
     let filePath = normalize(join(root, requested));
@@ -118,7 +164,7 @@ async function serveStatic(response, url) {
         if (!file.isFile()) throw new Error('Not a file');
         const responseHeaders = { 'Content-Type': mimeTypes[extname(filePath)] || 'application/octet-stream', ...headers };
         response.writeHead(200, responseHeaders);
-        if (url.pathname === '/' || url.pathname === '/login') {
+        if (url.pathname === '/' || url.pathname === '/login' || url.pathname === '/admin') {
             const html = await readFile(filePath, 'utf8');
             return response.end(html.replace('{{CSRF_TOKEN}}', signCsrfToken(config.jwtSecret, config.tokenTtlSeconds)));
         }
@@ -132,7 +178,7 @@ const server = createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
     if (url.pathname.startsWith('/api/')) return handleApi(request, response, url);
     if (request.method !== 'GET') return response.writeHead(405, { Allow: 'GET', ...securityHeaders() }).end();
-    return serveStatic(response, url);
+    return serveStatic(request, response, url);
 });
 
 server.listen(config.port, () => console.log(`Shop server running at http://localhost:${config.port}`));

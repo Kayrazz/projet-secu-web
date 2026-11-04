@@ -5,3 +5,12 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS figurines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  image_url TEXT NOT NULL,
+  price REAL NOT NULL DEFAULT 0 CHECK (price >= 0),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
