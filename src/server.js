@@ -1,24 +1,35 @@
 import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { extname, join, normalize } from 'node:path';
+import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
-import { createFigurine, findUserByEmail, findUserById, listFigurines } from './db.js';
+import { createFigurine, findUserByEmail, listFigurines } from './db.js';
+import { createAuthorizationMiddleware, getAuthenticatedUser } from './middleware/authorization.js';
+import { createPathTraversalMiddleware } from './middleware/path.js';
 import { rateLimit } from './rate-limit.js';
-import { parseCookies, safeEqual, serializeCookie, signCsrfToken, signJwt, verifyCsrfToken, verifyJwt, verifyPassword } from './security.js';
+import { safeEqual, serializeCookie, signCsrfToken, signJwt, verifyCsrfToken, verifyJwt, verifyPassword } from './security.js';
+import { isSafeOutboundUrl } from './ssrf.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)), 'public');
-const mimeTypes = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8' };
+const mimeTypes = {
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.html': 'text/html; charset=utf-8'
+};
 
 function sendJson(response, status, payload, headers = {}) {
-    response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...headers });
+    response.writeHead(status, {
+        'Content-Type': 'application/json; charset=utf-8',
+        ...headers
+    });
     response.end(JSON.stringify(payload));
 }
 
+// Headers communs pour protéger toutes les réponses HTTP.
 function securityHeaders() {
     const headers = {
-        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; frame-ancestors 'none'",
+        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'",
         // Interdit l'intégration de la boutique dans une iframe.
         'X-Frame-Options': 'DENY',
         // Empêche le navigateur de deviner un autre type MIME.
@@ -43,6 +54,7 @@ async function readJson(request) {
     return JSON.parse(body || '{}');
 }
 
+// Vérifie le token envoyé dans le formulaire et dans le header personnalisé.
 function hasValidCsrfToken(request, formToken) {
     const headerToken = request.headers['x-csrf-token'];
     return Boolean(formToken && headerToken)
@@ -50,80 +62,121 @@ function hasValidCsrfToken(request, formToken) {
         && verifyCsrfToken(formToken, config.jwtSecret);
 }
 
-function authenticatedUser(request) {
-    const token = parseCookies(request)[config.cookieName];
-    if (!token) return null;
-    try {
-        const claims = verifyJwt(token, config.jwtSecret);
-        return findUserById(Number(claims.sub));
-    } catch {
-        return null;
-    }
-}
-
-function authenticatedAdmin(request) {
-    const user = authenticatedUser(request);
-    return user?.role === 'admin' ? user : null;
-}
-
-function isValidImageUrl(value) {
-    try {
-        return new URL(value).protocol === 'https:';
-    } catch {
-        return false;
-    }
-}
-
 async function handleApi(request, response, url) {
     const headers = securityHeaders();
+    const clientKey = request.socket.remoteAddress || 'unknown';
+    const apiLimiter = rateLimit(`api:${clientKey}`, config.apiRateLimit, config.apiRateLimitWindowMs);
+
+    // Limite globale pour éviter qu'une seule IP sature les routes API.
+    if (!apiLimiter.allowed) {
+        return sendJson(
+            response,
+            429,
+            { error: 'Trop de requêtes. Réessayez plus tard.' },
+            { ...headers, 'Retry-After': apiLimiter.retryAfter }
+        );
+    }
+
+    // Authentification : le login possède une limite spécifique plus stricte.
     if (request.method === 'POST' && url.pathname === '/api/auth/login') {
         try {
             const { csrfToken, email, password } = await readJson(request);
-            // Le token vient du champ hidden et doit aussi être envoyé par un header personnalisé.
-            if (!hasValidCsrfToken(request, csrfToken)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
-            const limiter = rateLimit(`login:${request.socket.remoteAddress || 'unknown'}`);
-            if (!limiter.allowed) return sendJson(response, 429, { error: 'Trop de tentatives. Réessayez plus tard.' }, { ...headers, 'Retry-After': limiter.retryAfter });
+            if (!hasValidCsrfToken(request, csrfToken)) {
+                return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
+            }
+
+            const limiter = rateLimit(`login:${clientKey}`, config.loginRateLimit, config.loginRateLimitWindowMs);
+            if (!limiter.allowed) {
+                return sendJson(
+                    response,
+                    429,
+                    { error: 'Trop de tentatives. Réessayez plus tard.' },
+                    { ...headers, 'Retry-After': limiter.retryAfter }
+                );
+            }
+
             const normalizedEmail = String(email || '').trim().toLowerCase();
             const user = findUserByEmail(normalizedEmail);
-            if (!user || !(await verifyPassword(String(password || ''), user.password_hash))) return sendJson(response, 401, { error: 'Identifiants invalides.' }, headers);
+            const passwordIsValid = user
+                && await verifyPassword(String(password || ''), user.password_hash);
+            if (!passwordIsValid) {
+                return sendJson(response, 401, { error: 'Identifiants invalides.' }, headers);
+            }
+
             const token = signJwt({ sub: String(user.id), role: user.role }, config.jwtSecret, config.tokenTtlSeconds);
-            return sendJson(response, 200, { user: { id: user.id, email: user.email, role: user.role } }, { ...headers, 'Set-Cookie': serializeCookie(config.cookieName, token, { maxAge: config.tokenTtlSeconds, secure: config.nodeEnv === 'production' }) });
+            const cookie = serializeCookie(config.cookieName, token, {
+                maxAge: config.tokenTtlSeconds,
+                secure: config.nodeEnv === 'production'
+            });
+
+            return sendJson(
+                response,
+                200,
+                { user: { id: user.id, email: user.email, role: user.role } },
+                { ...headers, 'Set-Cookie': cookie }
+            );
         } catch {
             return sendJson(response, 400, { error: 'Requête JSON invalide.' }, headers);
         }
     }
+
+    // Déconnexion : supprimer le cookie invalide la session côté navigateur.
     if (request.method === 'POST' && url.pathname === '/api/auth/logout') {
-        return sendJson(response, 200, { ok: true }, { ...headers, 'Set-Cookie': serializeCookie(config.cookieName, '', { maxAge: 0, secure: config.nodeEnv === 'production' }) });
+        const cookie = serializeCookie(config.cookieName, '', {
+            maxAge: 0,
+            secure: config.nodeEnv === 'production'
+        });
+        return sendJson(response, 200, { ok: true }, { ...headers, 'Set-Cookie': cookie });
     }
+
+    // Session courante utilisée par les pages privées.
     if (request.method === 'GET' && url.pathname === '/api/auth/me') {
-        const user = authenticatedUser(request);
-        return user ? sendJson(response, 200, { user }, headers) : sendJson(response, 401, { error: 'Authentification requise.' }, headers);
+        const user = getAuthenticatedUser(request, config.cookieName, config.jwtSecret);
+        return user
+            ? sendJson(response, 200, { user }, headers)
+            : sendJson(response, 401, { error: 'Authentification requise.' }, headers);
     }
+
+    // Catalogue public utilisé par la page principale.
     if (request.method === 'GET' && url.pathname === '/api/figurines') {
         return sendJson(response, 200, { figurines: listFigurines() }, headers);
     }
+
+    // Routes du backoffice : le middleware vérifie le rôle admin avant d'entrer ici.
     if (url.pathname === '/api/admin/figurines') {
-        if (!authenticatedUser(request)) return sendJson(response, 401, { error: 'Authentification requise.' }, headers);
-        if (!authenticatedAdmin(request)) return sendJson(response, 403, { error: 'Accès administrateur requis.' }, headers);
-        if (request.method === 'GET') return sendJson(response, 200, { figurines: listFigurines() }, headers);
-        if (request.method === 'POST') {
-            try {
-                const { csrfToken, name, category, imageUrl, price } = await readJson(request);
-                if (!hasValidCsrfToken(request, csrfToken)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
-                const cleanName = String(name || '').trim();
-                const cleanCategory = String(category || '').trim();
-                const cleanImageUrl = String(imageUrl || '').trim();
-                const priceNumber = Number(String(price ?? '').replace(',', '.'));
-                if (!cleanName || cleanName.length > 120 || !cleanCategory || cleanCategory.length > 80 || !isValidImageUrl(cleanImageUrl) || cleanImageUrl.length > 500 || !Number.isFinite(priceNumber) || priceNumber < 0 || priceNumber > 100000) {
-                    return sendJson(response, 400, { error: 'Nom, catégorie ou URL d’image invalide.' }, headers);
+        return authorization.requireRole('admin')(request, response, async () => {
+            if (request.method === 'GET') return sendJson(response, 200, { figurines: listFigurines() }, headers);
+            if (request.method === 'POST') {
+                try {
+                    const { csrfToken, name, category, imageUrl, price } = await readJson(request);
+                    if (!hasValidCsrfToken(request, csrfToken)) return sendJson(response, 403, { error: 'Jeton CSRF invalide.' }, headers);
+                    const cleanName = String(name || '').trim();
+                    const cleanCategory = String(category || '').trim();
+                    const cleanImageUrl = String(imageUrl || '').trim();
+                    const priceNumber = Number(String(price ?? '').replace(',', '.'));
+                    const invalidFigurine = !cleanName
+                        || cleanName.length > 120
+                        || !cleanCategory
+                        || cleanCategory.length > 80
+                        || !(await isSafeOutboundUrl(cleanImageUrl))
+                        || cleanImageUrl.length > 500
+                        || !Number.isFinite(priceNumber)
+                        || priceNumber < 0
+                        || priceNumber > 100000;
+
+                    if (invalidFigurine) {
+                        return sendJson(response, 400, { error: 'Nom, catégorie ou URL d’image invalide.' }, headers);
+                    }
+                    return sendJson(response, 201, { figurine: createFigurine({ name: cleanName, category: cleanCategory, imageUrl: cleanImageUrl, price: priceNumber }) }, headers);
+                } catch {
+                    return sendJson(response, 400, { error: 'Requête JSON invalide.' }, headers);
                 }
-                return sendJson(response, 201, { figurine: createFigurine({ name: cleanName, category: cleanCategory, imageUrl: cleanImageUrl, price: priceNumber }) }, headers);
-            } catch {
-                return sendJson(response, 400, { error: 'Requête JSON invalide.' }, headers);
             }
-        }
-        return sendJson(response, 405, { error: 'Méthode non autorisée.' }, { ...headers, Allow: 'GET, POST' });
+            return sendJson(response, 405, { error: 'Méthode non autorisée.' }, { ...headers, Allow: 'GET, POST' });
+        });
     }
+
+    // Endpoint de démonstration volontairement désactivé par défaut.
     if (request.method === 'GET' && url.pathname === '/api/lab/broken-auth') {
         if (!config.enableBrokenAuthLab) return sendJson(response, 404, { error: 'Lab désactivé.' }, headers);
         const requestedUserId = Number(url.searchParams.get('userId'));
@@ -133,16 +186,33 @@ async function handleApi(request, response, url) {
     return sendJson(response, 404, { error: 'Route API introuvable.' }, headers);
 }
 
+const authorization = createAuthorizationMiddleware({
+    getUser: request => getAuthenticatedUser(request, config.cookieName, config.jwtSecret),
+    deny: (response, status, message) => sendJson(response, status, { error: message }, securityHeaders())
+});
+
+const pathTraversalMiddleware = createPathTraversalMiddleware(root, (response, status, message) => {
+    response.writeHead(status, { ...securityHeaders(), 'Content-Type': 'text/plain; charset=utf-8' });
+    response.end(message);
+});
+
 async function serveStatic(request, response, url) {
     const headers = securityHeaders();
 
     // Le backoffice est protégé avant même de servir son document HTML.
     if (url.pathname === '/admin') {
-        const user = authenticatedUser(request);
-        if (!user) return response.writeHead(401, headers).end('Authentification requise.');
-        if (user.role !== 'admin') return response.writeHead(403, headers).end('Accès administrateur requis.');
+        let allowed = false;
+        await authorization.requireRole('admin')(request, response, async () => {
+            allowed = true;
+        });
+        if (!allowed) return;
     }
 
+    return pathTraversalMiddleware(request, response, () => serveStaticFile(request, response, url));
+}
+
+async function serveStaticFile(request, response, url) {
+    const headers = securityHeaders();
     // Chaque écran possède son propre document HTML.
     const pages = {
         '/': '/login.html',
@@ -150,9 +220,9 @@ async function serveStatic(request, response, url) {
         '/app': '/app.html',
         '/admin': '/admin.html'
     };
-    const requested = pages[url.pathname] || url.pathname;
-    let filePath = normalize(join(root, requested));
-    if (!filePath.startsWith(root)) return response.writeHead(403, headers).end();
+    const pathname = request.safePathname;
+    const requested = pages[pathname] || pathname;
+    let filePath = join(root, requested);
     try {
         let file;
         try {
@@ -164,7 +234,7 @@ async function serveStatic(request, response, url) {
         if (!file.isFile()) throw new Error('Not a file');
         const responseHeaders = { 'Content-Type': mimeTypes[extname(filePath)] || 'application/octet-stream', ...headers };
         response.writeHead(200, responseHeaders);
-        if (url.pathname === '/' || url.pathname === '/login' || url.pathname === '/admin') {
+        if (pathname === '/' || pathname === '/login' || pathname === '/admin') {
             const html = await readFile(filePath, 'utf8');
             return response.end(html.replace('{{CSRF_TOKEN}}', signCsrfToken(config.jwtSecret, config.tokenTtlSeconds)));
         }

@@ -1,4 +1,6 @@
 // Le backoffice utilise la même session JWT que la boutique.
+import { createSafeImage } from './dom-security.js';
+
 async function request(path, options = {}) {
     const response = await fetch(path, {
         credentials: 'same-origin',
@@ -42,12 +44,8 @@ function renderFigurines(figurines) {
     figurines.forEach(figurine => {
         const row = document.createElement('tr');
         const imageCell = document.createElement('td');
-        const image = document.createElement('img');
-        image.className = 'figurine-thumb';
-        image.src = figurine.image_url;
-        image.alt = `Image de ${figurine.name}`;
-        image.loading = 'lazy';
-        imageCell.append(image);
+        const image = createSafeImage(figurine.image_url, `Image de ${figurine.name}`, 'figurine-thumb');
+        if (image) imageCell.append(image);
 
         row.append(imageCell);
         row.append(createCell(figurine.name, 'figurine-name'));

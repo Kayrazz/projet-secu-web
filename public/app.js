@@ -1,4 +1,6 @@
 // Centralise les appels API utilisés par la page privée.
+import { createSafeImage } from './dom-security.js';
+
 async function request(path, options = {}) {
     const response = await fetch(path, {
         credentials: 'same-origin',
@@ -49,11 +51,8 @@ function createAddedProduct(figurine) {
 
     const art = document.createElement('div');
     art.className = 'product-art added-product-art';
-    const image = document.createElement('img');
-    image.src = figurine.image_url;
-    image.alt = `Image de ${figurine.name}`;
-    image.loading = 'lazy';
-    art.append(image);
+    const image = createSafeImage(figurine.image_url, `Image de ${figurine.name}`);
+    if (image) art.append(image);
 
     const info = document.createElement('div');
     info.className = 'product-info';
